@@ -209,7 +209,6 @@ def main():
         if confirm in ('y', 'yes'):
             process_xml_folder(input_folder, output_folder)
             ### ADDED ###
-            clean_all_text_files(output_folder)
             ### END ADDED ###
         else:
             print("\n❌ Cancelled by user")
