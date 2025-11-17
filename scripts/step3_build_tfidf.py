@@ -1,5 +1,5 @@
 """
-Step 4: Build TF-IDF Matrices (BM25/Okapi) - Pure NLTK Stopwords
+Step 3: Build TF-IDF Matrices (BM25/Okapi) - Pure NLTK Stopwords
 ==================================================================
 This script:
 - Loads cleaned + lemmatized text files

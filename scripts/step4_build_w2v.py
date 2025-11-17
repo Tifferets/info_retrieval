@@ -1,5 +1,5 @@
 """
-Step 3: Build Word2Vec Vectors
+Step 4: Build Word2Vec Vectors
 ======================================
 
 Build document vectors using Word2Vec embeddings.
@@ -8,7 +8,7 @@ Creates two matrix groups:
 - W2V-Lemm: Lemmatized text without punctuation, numbers, dates, stop-words
 
 Usage:
-    python step3_build_w2v_glove.py
+    python step4_build_w2v.py
 """
 
 import re
@@ -21,11 +21,21 @@ warnings.filterwarnings('ignore')
 # Word2Vec models
 from gensim.models import Word2Vec
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
-# import nltk
-# nltk.download('punkt', quiet=True)
-# from nltk.tokenize import word_tokenize
 
 
+##############################################
+# clean_text_for_embedding(text, remove_stopwords)
+# תפקיד הפונקציה:
+# • להסיר URLs, emails, תאריכים ומספרים מהטקסט
+# • להסיר סימני פיסוק ותווים מיוחדים
+# • לתייקד (tokenize) את הטקסט למילים בודדות
+# • להסיר stop-words אם מבוקש (לקבוצת W2V-Lemm בלבד)
+#
+# למה זה חשוב?
+# Word2Vec מאומן על וקטורי מילים, לא סימני פיסוק.
+# הסרת סימנים מבטיחה שרק מילים בעלות משמעות יוזנו למודל.
+# לקבוצת Lemm אנחנו גם מסירים stop-words כדי להגביר את איכות הווקטורים.
+##############################################
 def clean_text_for_embedding(text, remove_stopwords=False):
     """
     Clean text for embedding (remove punctuation, numbers, dates).
@@ -69,6 +79,18 @@ def clean_text_for_embedding(text, remove_stopwords=False):
     return tokens
 
 
+##############################################
+# load_documents(folder_path)
+# תפקיד הפונקציה:
+# • לסרוק את כל קבצי ה־txt בתיקייה
+# • לטעון כל קובץ לזיכרון (טקסט וגם שם הקובץ)
+# • לשמור על סדר עקבי של קבצים וטקסטים
+#
+# למה זה חשוב?
+# צריך לשמור על התאמה בין השורות במטריצת הווקטורים
+# לבין שמות הקבצים המקוריים בתיקייה.
+# אם הסדר יגיבשה, לא נוכל להשיב לקובץ המקורי.
+##############################################
 def load_documents(folder_path):
     """Load all text documents from a folder"""
     folder = Path(folder_path)
@@ -101,6 +123,18 @@ def load_documents(folder_path):
     return documents, filenames
 
 
+##############################################
+# train_word2vec(corpus_tokens, output_file, ...)
+# תפקיד הפונקציה:
+# • לאמן מודל Word2Vec על הקורפוס (רשימת המילים מכל המסמכים)
+# • Word2Vec לומד וקטורים בגודל 300 ממד לכל מילה
+# • השימוש ב־Skip-gram model: מנבא מילים קרובות מתוך מילה נתונה
+# • השמירה של המודל לדיסק לשימוש עתידי
+#
+# למה זה חשוב?
+# הוקטורים שנלמדו יהפכו למצע להמרת כל מסמך לוקטור יחיד.
+# מודל טוב נלמד = וקטורים טובים = ייצוג מדויק של המסמכים.
+##############################################
 def train_word2vec(corpus_tokens, output_file, vector_size=300, window=5, min_count=5):
     """
     Train Word2Vec model
@@ -121,14 +155,14 @@ def train_word2vec(corpus_tokens, output_file, vector_size=300, window=5, min_co
     print(f"   • Min count: {min_count}")
     
     model = Word2Vec(
-        sentences=corpus_tokens,
-        vector_size=vector_size,
-        window=window,
-        min_count=min_count,
-        workers=4,
-        epochs=10,
-        seed=42,
-        sg=1  # Skip-gram model
+        sentences=corpus_tokens,      # רשימת טוקנים (כל מסמך = רשימת מילים)
+        vector_size=vector_size,      # גודל וקטור (מימדים)
+        window=window,                # חלון הקשר (כמה מילים מהצד לכל מילה)
+        min_count=min_count,          # תדירות מינימלית (תתעלם ממילים נדירות)
+        workers=4,                    # מספר threads להאמנה מקבילה
+        epochs=10,                    # מספר מעברים על הקורפוס
+        seed=42,                      # לשחזור תוצאות
+        sg=1                          # Skip-gram model (1) ולא CBOW (0)
     )
     
     # Save model
@@ -138,6 +172,19 @@ def train_word2vec(corpus_tokens, output_file, vector_size=300, window=5, min_co
     return model
 
 
+##############################################
+# documents_to_vectors(documents, model, vector_size)
+# תפקיד הפונקציה:
+# • לעבור על כל מסמך וחלץ את הטוקנים שלו
+# • לחפש כל טוקן במודל Word2Vec
+# • לחשב ממוצע של כל וקטורי המילים במסמך
+# • להחזיר וקטור יחיד בגודל 300 ממד לכל מסמך
+#
+# למה זה חשוב?
+# כל מסמך צריך להיות מיוצג כוקטור יחיד לשימוש בחיפוש דקות (IR).
+# ממוצע של וקטורים (mean pooling) היא שיטה פשוטה ויעילה
+# לצורך זה, ומשמרת את המשמעות הסמנטית של המסמך.
+##############################################
 def documents_to_vectors(documents, model, vector_size=300):
     """
     Convert documents to vectors using pre-trained Word2Vec model.
@@ -177,6 +224,25 @@ def documents_to_vectors(documents, model, vector_size=300):
     return np.array(vectors)
 
 
+##############################################
+# build_w2v_matrices(clean_folder, lemm_folder, output_folder, ...)
+# תפקיד הפונקציה:
+# • בנייה של שתי מטריצות נפרדות:
+#   1. W2V-Word: מקבצים נקיים (ללא stop-words)
+#   2. W2V-Lemm: מקבצים ללמות (עם הסרת stop-words)
+# • לכל קבוצה:
+#   - טעינת המסמכים
+#   - ניקוי ספציפי (עם או בלי stop-words)
+#   - אימון מודל Word2Vec נפרד
+#   - המרה של מסמכים לוקטורים
+#   - שמירת מטריצה וקובץ רשימת שמות
+#
+# למה זה חשוב?
+# שתי גרסאות משלימות:
+# - W2V-Word משמרת מבנה דקדוקי (כולל מילות קשר)
+# - W2V-Lemm משמרת עקביות לינגוויסטית (שורשי מילים בלבד)
+# זה מאפשר השוואה בין שתי גישות ובחירה בגרסה הטובה ביותר.
+##############################################
 def build_w2v_matrices(clean_folder, lemm_folder, output_folder, 
                        vector_size=300, window=5, min_count=5):
     """
@@ -316,11 +382,22 @@ def build_w2v_matrices(clean_folder, lemm_folder, output_folder,
     return w2v_word_vectors, w2v_lemm_vectors, w2v_word, w2v_lemm
 
 
+##############################################
+# main()
+# תפקיד הפונקציה:
+# • לקבל מהמשתמש נתיבי קלט ופלט
+# • לקבל פרמטרים (גודל וקטור, חלון הקשר וכו')
+# • לקרוא ל־build_w2v_matrices עם הפרמטרים הנכונים
+#
+# למה זה חשוב?
+# main מרכזת את כל הלוגיקה ומבטיחה זרימה נכונה של התוכנית.
+# היא מקלה על המשתמש לשלוט בתהליך ללא צורך בהיכרות עם הקוד.
+##############################################
 def main():
     """Main function"""
     print("""
 ╔══════════════════════════════════════════════════════════════╗
-║      Step 3: Build Word2Vec / GloVe Vectors                  ║
+║      Step 4: Build Word2Vec                                  ║
 ╚══════════════════════════════════════════════════════════════╝
     """)
     
