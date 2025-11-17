@@ -185,43 +185,19 @@ def main():
 ╚══════════════════════════════════════════════════════════════╝
     """)
 
-    print("1️⃣  Quick check - Preview of one file")
-    print("2️⃣  Full processing - Extract text from all files")
-    print("3️⃣  Custom - Set your own paths\n")
-    choice = input("Choose option (1/2/3): ").strip()
-
-    if choice == '1':
-        folder = input("\nFolder with XML files: ").strip()
-        xml_files = list(Path(folder).glob('*.xml'))
-        if xml_files:
-            print(f"\n✅ Found {len(xml_files)} XML files")
-            print(f"📄 Showing first file: {xml_files[0].name}")
-            preview_extraction(xml_files[0])
-        else:
-            print(f"\n❌ No XML files found in {folder}")
-
-    elif choice == '2':
-        default_input = "parliament_data/raw_xml"
-        default_output = "parliament_data/extracted_text"
-        input_folder = input(f"\nInput folder [{default_input}]: ").strip() or default_input
-        output_folder = input(f"Output folder [{default_output}]: ").strip() or default_output
-        confirm = input("\nContinue? (y/n): ").strip().lower()
-        if confirm in ('y', 'yes'):
+   
+    default_input = "parliament_data/raw_xml"
+    default_output = "parliament_data/extracted_text"       
+    input_folder = input(f"\nInput folder [{default_input}]: ").strip() or default_input
+    output_folder = input(f"Output folder [{default_output}]: ").strip() or default_output
+    confirm = input("\nContinue? (y/n): ").strip().lower()
+    if confirm in ('y', 'yes'):
             process_xml_folder(input_folder, output_folder)
             ### ADDED ###
             ### END ADDED ###
-        else:
-            print("\n❌ Cancelled by user")
+            clean_all_text_files(output_folder)
 
-    elif choice == '3':
-        input_folder = input("\nInput folder (XML): ").strip()
-        output_folder = input("Output folder (TXT): ").strip()
-        process_xml_folder(input_folder, output_folder)
-        ### ADDED ###
-        clean_all_text_files(output_folder)
-        ### END ADDED ###
-    else:
-        print("\n❌ Invalid choice")
+  
 
 
 if __name__ == "__main__":
