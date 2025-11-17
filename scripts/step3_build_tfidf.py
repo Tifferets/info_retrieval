@@ -1,14 +1,11 @@
 """
-Step 4: Build TF-IDF Matrices (BM25/Okapi)
-===========================================
+Step 4: Build TF-IDF Matrices (BM25/Okapi) - Pure NLTK Stopwords
+==================================================================
 
-This script builds TF-IDF matrices using BM25/Okapi variant for:
-1. Clean text files (TFIDF-Word)
-2. Lemmatized text files (TFIDF-Lemm)
-
-It also calculates feature importance using:
-- Information Gain
-- Chi-squared statistic
+This script builds TF-IDF matrices using:
+- NLTK stopwords ONLY (no custom additions)
+- BM25/Okapi transformation
+- Feature importance calculation
 
 Author: Your Name
 Date: 2025
@@ -25,6 +22,10 @@ from tqdm import tqdm
 import warnings
 warnings.filterwarnings('ignore')
 
+# NLTK for stopwords
+import nltk
+from nltk.corpus import stopwords
+
 # For Information Gain calculation
 from scipy.stats import entropy
 
@@ -35,16 +36,6 @@ class BM25Transformer:
     
     BM25 is a ranking function used in information retrieval.
     It's an improvement over standard TF-IDF.
-    
-    Formula:
-    BM25(q,d) = Σ IDF(qi) · (f(qi,d) · (k1 + 1)) / (f(qi,d) + k1 · (1 - b + b · |d|/avgdl))
-    
-    Where:
-    - f(qi,d) = term frequency of qi in document d
-    - |d| = length of document d
-    - avgdl = average document length
-    - k1 = term saturation parameter (usually 1.2-2.0)
-    - b = length normalization parameter (usually 0.75)
     """
     
     def __init__(self, k1=1.5, b=0.75):
@@ -86,12 +77,10 @@ class BM25Transformer:
             row = bm25_matrix.getrow(i)
             
             # Apply BM25 formula
-            # BM25 = IDF(term) × (TF × (k1 + 1)) / (TF + k1 × length_norm)
             row_data = row.data
             row_data = row_data * (self.k1 + 1) / (row_data + self.k1 * length_norm)
             
             # Multiply by IDF
-            # Get column indices for this row
             col_indices = row.indices
             row_data = row_data * idf_vector[col_indices]
             
@@ -99,6 +88,44 @@ class BM25Transformer:
             bm25_matrix.data[bm25_matrix.indptr[i]:bm25_matrix.indptr[i+1]] = row_data
         
         return bm25_matrix
+
+
+def download_nltk_data():
+    """
+    Download NLTK stopwords if not already downloaded
+    """
+    print("\n📥 Checking NLTK stopwords...")
+    try:
+        # Try to access stopwords
+        _ = stopwords.words('english')
+        print("✅ NLTK stopwords already available")
+    except LookupError:
+        print("📥 Downloading NLTK stopwords (one-time setup)...")
+        nltk.download('stopwords', quiet=True)
+        print("✅ NLTK stopwords downloaded")
+
+
+def get_nltk_stopwords():
+    """
+    Get NLTK English stopwords ONLY (no custom additions)
+    
+    Returns:
+        set: NLTK English stopwords
+    """
+    print("\n🛑 Loading NLTK stopwords...")
+    
+    # Download if needed
+    download_nltk_data()
+    
+    # Get NLTK's English stopwords
+    nltk_stopwords = set(stopwords.words('english'))
+    
+    print(f"   • NLTK English stopwords: {len(nltk_stopwords)}")
+    print(f"   • Source: NLTK corpus (standard academic set)")
+    print(f"   • No custom additions")
+    print(f"   ✅ Stopwords loaded!")
+    
+    return nltk_stopwords
 
 
 def load_documents(folder_path):
@@ -110,8 +137,6 @@ def load_documents(folder_path):
         
     Returns:
         tuple: (documents, filenames)
-            - documents: list of text strings
-            - filenames: list of file names (without extension)
     """
     folder = Path(folder_path)
     
@@ -120,7 +145,6 @@ def load_documents(folder_path):
     
     print(f"\n📂 Loading documents from: {folder}")
     
-    # Find all text files
     txt_files = sorted(list(folder.glob('*.txt')))
     
     if not txt_files:
@@ -131,16 +155,14 @@ def load_documents(folder_path):
     documents = []
     filenames = []
     
-    # Load each file
     for txt_file in tqdm(txt_files, desc="Loading files", unit="file"):
         try:
             with open(txt_file, 'r', encoding='utf-8') as f:
                 text = f.read()
                 documents.append(text)
-                filenames.append(txt_file.stem)  # filename without extension
+                filenames.append(txt_file.stem)
         except Exception as e:
             print(f"⚠️  Error reading {txt_file.name}: {e}")
-            # Add empty document to keep alignment
             documents.append("")
             filenames.append(txt_file.stem)
     
@@ -157,47 +179,20 @@ def load_documents(folder_path):
 def calculate_information_gain(X, y, feature_names):
     """
     Calculate Information Gain for each feature
-    
-    Information Gain measures how much information a feature gives us
-    about the class. Higher IG = more informative feature.
-    
-    Formula:
-    IG(Feature) = H(Class) - H(Class|Feature)
-    
-    Where H is entropy
-    
-    Args:
-        X: Feature matrix (sparse or dense)
-        y: Labels (for TF-IDF, we can use document IDs or create pseudo-labels)
-        feature_names: List of feature names
-        
-    Returns:
-        DataFrame with features and their IG scores
     """
     print("\n📊 Calculating Information Gain...")
     
-    # For unsupervised case (no labels), we create pseudo-labels
-    # based on document clusters or simply use mutual information
-    
-    # Use mutual_info_classif from sklearn
-    # This works even without explicit labels
-    # We'll create pseudo-labels based on document length or other heuristics
-    
-    # Simple approach: divide documents into groups based on their length
     doc_lengths = np.array(X.sum(axis=1)).flatten()
-    n_bins = min(10, len(doc_lengths) // 10)  # Create bins
+    n_bins = min(10, len(doc_lengths) // 10)
     pseudo_labels = pd.cut(doc_lengths, bins=n_bins, labels=False)
     
-    # Calculate mutual information (similar to IG)
     mi_scores = mutual_info_classif(X, pseudo_labels, random_state=42)
     
-    # Create DataFrame
     ig_df = pd.DataFrame({
         'feature': feature_names,
         'information_gain': mi_scores
     })
     
-    # Sort by IG (descending)
     ig_df = ig_df.sort_values('information_gain', ascending=False)
     ig_df = ig_df.reset_index(drop=True)
     
@@ -209,37 +204,21 @@ def calculate_information_gain(X, y, feature_names):
 def calculate_chi_squared(X, y, feature_names):
     """
     Calculate Chi-squared statistic for each feature
-    
-    Chi-squared test measures the independence between features and labels.
-    Higher chi2 = feature is more dependent on the class.
-    
-    Args:
-        X: Feature matrix (sparse or dense)
-        y: Labels (pseudo-labels for unsupervised)
-        feature_names: List of feature names
-        
-    Returns:
-        DataFrame with features and their chi2 scores
     """
     print("\n📊 Calculating Chi-squared statistic...")
     
-    # Create pseudo-labels (same as for IG)
     doc_lengths = np.array(X.sum(axis=1)).flatten()
     n_bins = min(10, len(doc_lengths) // 10)
     pseudo_labels = pd.cut(doc_lengths, bins=n_bins, labels=False)
     
-    # Calculate chi-squared
-    # Note: chi2 requires non-negative features
     chi2_scores, p_values = chi2(X, pseudo_labels)
     
-    # Create DataFrame
     chi2_df = pd.DataFrame({
         'feature': feature_names,
         'chi_squared': chi2_scores,
         'p_value': p_values
     })
     
-    # Sort by chi2 (descending)
     chi2_df = chi2_df.sort_values('chi_squared', ascending=False)
     chi2_df = chi2_df.reset_index(drop=True)
     
@@ -250,18 +229,19 @@ def calculate_chi_squared(X, y, feature_names):
 
 def build_tfidf_matrix(documents, filenames, matrix_name, 
                        min_df=5, max_df=0.95, max_features=10000,
-                       use_bm25=True):
+                       use_bm25=True, stopwords_set=None):
     """
-    Build TF-IDF matrix with dimensionality reduction
+    Build TF-IDF matrix with NLTK stopwords and dimensionality reduction
     
     Args:
         documents: List of text documents
         filenames: List of document names
-        matrix_name: Name for this matrix (e.g., "TFIDF-Word")
+        matrix_name: Name for this matrix
         min_df: Minimum document frequency (default: 5)
         max_df: Maximum document frequency (default: 0.95)
-        max_features: Maximum number of features to keep (default: 10000)
-        use_bm25: Whether to use BM25 instead of standard TF-IDF
+        max_features: Maximum number of features (default: 10000)
+        use_bm25: Whether to use BM25 transformation
+        stopwords_set: Set of stopwords (NLTK only)
         
     Returns:
         tuple: (matrix, feature_names, vectorizer, stats)
@@ -270,31 +250,30 @@ def build_tfidf_matrix(documents, filenames, matrix_name,
     print(f"🔨 Building {matrix_name}")
     print(f"{'='*70}")
     
-    # Step 1: Create TF-IDF vectorizer
-    print("\n⚙️  Creating TF-IDF vectorizer...")
-    print(f"   • min_df (minimum document frequency): {min_df}")
-    print(f"   • max_df (maximum document frequency): {max_df}")
-    print(f"   • max_features: {max_features}")
+    print(f"\n⚙️  TF-IDF Vectorizer Configuration:")
+    print(f"   • Stopwords: NLTK English only ({len(stopwords_set)} words)")
+    print(f"   • min_df: {min_df} (removes words in < {min_df} documents)")
+    print(f"   • max_df: {max_df} (removes words in > {max_df*100}% of documents)")
+    print(f"   • max_features: {max_features} (keeps top {max_features} features)")
+    print(f"   • token_pattern: Default word tokenization")
     
     vectorizer = TfidfVectorizer(
-        min_df=min_df,              # Ignore terms appearing in fewer than min_df documents
-        max_df=max_df,              # Ignore terms appearing in more than max_df of documents
-        max_features=max_features,  # Keep only top max_features by term frequency
-        stop_words='english',       # Remove English stop words
-        lowercase=True,             # Convert to lowercase
-        token_pattern=r'(?u)\b\w+\b',  # Match words (alphanumeric sequences)
-        ngram_range=(1, 1),         # Use only unigrams (single words)
-        norm='l2',                  # L2 normalization
-        use_idf=True,               # Use IDF weighting
-        smooth_idf=True,            # Add 1 to document frequencies (smoothing)
-        sublinear_tf=False          # Don't use sublinear TF scaling (we'll use BM25)
+        min_df=min_df,
+        max_df=max_df,
+        max_features=max_features,
+        stop_words=list(stopwords_set),  # NLTK stopwords only
+        lowercase=True,
+        token_pattern=r'(?u)\b\w+\b',  # Default: any word
+        ngram_range=(1, 1),
+        norm='l2',
+        use_idf=True,
+        smooth_idf=True,
+        sublinear_tf=False
     )
     
-    # Step 2: Fit and transform
     print("\n🔄 Fitting vectorizer and transforming documents...")
     tfidf_matrix = vectorizer.fit_transform(tqdm(documents, desc="Vectorizing"))
     
-    # Get feature names
     feature_names = vectorizer.get_feature_names_out()
     
     print(f"\n✅ TF-IDF matrix created:")
@@ -302,18 +281,13 @@ def build_tfidf_matrix(documents, filenames, matrix_name,
     print(f"   • Sparsity: {(1 - tfidf_matrix.nnz / (tfidf_matrix.shape[0] * tfidf_matrix.shape[1])) * 100:.2f}%")
     print(f"   • Non-zero elements: {tfidf_matrix.nnz:,}")
     
-    # Step 3: Apply BM25 if requested
     if use_bm25:
         print("\n🔄 Applying BM25 transformation...")
         
-        # Calculate document lengths
         doc_lengths = np.array(tfidf_matrix.sum(axis=1)).flatten()
         avg_doc_length = doc_lengths.mean()
-        
-        # Get IDF values from vectorizer
         idf_vector = vectorizer.idf_
         
-        # Apply BM25
         bm25_transformer = BM25Transformer(k1=1.5, b=0.75)
         bm25_matrix = bm25_transformer.fit_transform(
             tfidf_matrix, doc_lengths, avg_doc_length, idf_vector
@@ -324,7 +298,6 @@ def build_tfidf_matrix(documents, filenames, matrix_name,
     else:
         final_matrix = tfidf_matrix
     
-    # Step 4: Collect statistics
     stats = {
         'matrix_name': matrix_name,
         'num_documents': len(documents),
@@ -332,7 +305,8 @@ def build_tfidf_matrix(documents, filenames, matrix_name,
         'sparsity': (1 - final_matrix.nnz / (final_matrix.shape[0] * final_matrix.shape[1])) * 100,
         'non_zero_elements': final_matrix.nnz,
         'avg_doc_length': np.array(final_matrix.sum(axis=1)).flatten().mean(),
-        'use_bm25': use_bm25
+        'use_bm25': use_bm25,
+        'num_stopwords': len(stopwords_set)
     }
     
     return final_matrix, feature_names, vectorizer, stats
@@ -342,40 +316,15 @@ def export_to_excel(word_ig, word_chi2, lemm_ig, lemm_chi2,
                     word_stats, lemm_stats, output_file):
     """
     Export feature importance to Excel file
-    
-    Args:
-        word_ig: Information Gain DataFrame for words
-        word_chi2: Chi-squared DataFrame for words
-        lemm_ig: Information Gain DataFrame for lemmas
-        lemm_chi2: Chi-squared DataFrame for lemmas
-        word_stats: Statistics for word matrix
-        lemm_stats: Statistics for lemma matrix
-        output_file: Path to output Excel file
     """
     print(f"\n📊 Exporting to Excel: {output_file}")
     
     with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-        # Sheet 1: TFIDF-Word - Information Gain
-        word_ig.head(100).to_excel(
-            writer, sheet_name='Word_InformationGain', index=False
-        )
+        word_ig.head(100).to_excel(writer, sheet_name='Word_InformationGain', index=False)
+        word_chi2.head(100).to_excel(writer, sheet_name='Word_ChiSquared', index=False)
+        lemm_ig.head(100).to_excel(writer, sheet_name='Lemm_InformationGain', index=False)
+        lemm_chi2.head(100).to_excel(writer, sheet_name='Lemm_ChiSquared', index=False)
         
-        # Sheet 2: TFIDF-Word - Chi-squared
-        word_chi2.head(100).to_excel(
-            writer, sheet_name='Word_ChiSquared', index=False
-        )
-        
-        # Sheet 3: TFIDF-Lemm - Information Gain
-        lemm_ig.head(100).to_excel(
-            writer, sheet_name='Lemm_InformationGain', index=False
-        )
-        
-        # Sheet 4: TFIDF-Lemm - Chi-squared
-        lemm_chi2.head(100).to_excel(
-            writer, sheet_name='Lemm_ChiSquared', index=False
-        )
-        
-        # Sheet 5: Statistics Summary
         stats_df = pd.DataFrame([word_stats, lemm_stats])
         stats_df.to_excel(writer, sheet_name='Statistics', index=False)
     
@@ -388,26 +337,24 @@ def main():
     """
     print("""
 ╔══════════════════════════════════════════════════════════════╗
-║         Step 4: Build TF-IDF Matrices (BM25)                 ║
+║    Step 4: Build TF-IDF Matrices (BM25)                     ║
+║    Using PURE NLTK Stopwords (No Custom Additions)          ║
 ╚══════════════════════════════════════════════════════════════╝
     """)
     
-    # ============================================
-    # Configuration
-    # ============================================
+    # Get NLTK stopwords ONLY
+    nltk_stopwords = get_nltk_stopwords()
     
-    # Folder paths
+    # Configuration
     CLEAN_TEXT_FOLDER = r"C:\Users\USER\Desktop\school work\Year 5\aichzur meida\clean_xml"
-    LEMMATIZED_FOLDER = input("\nEnter path to lemmatized text folder: ").strip()
+    LEMMATIZED_FOLDER = r"C:\Users\USER\Desktop\school work\Year 5\aichzur meida\lemmatized_files"
     OUTPUT_FOLDER = input("Enter path for output folder: ").strip()
     
-    # Create output folder
     Path(OUTPUT_FOLDER).mkdir(parents=True, exist_ok=True)
     
-    # Dimensionality reduction parameters
-    MIN_DF = 5          # Minimum document frequency
-    MAX_DF = 0.95       # Maximum document frequency (95% of documents)
-    MAX_FEATURES = 10000  # Maximum number of features
+    MIN_DF = 5
+    MAX_DF = 0.95
+    MAX_FEATURES = 10000
     
     print(f"\n{'='*70}")
     print(f"📋 Configuration:")
@@ -418,28 +365,21 @@ def main():
     print(f"Min document freq:     {MIN_DF}")
     print(f"Max document freq:     {MAX_DF}")
     print(f"Max features:          {MAX_FEATURES}")
+    print(f"Stopwords:             NLTK English only ({len(nltk_stopwords)} words)")
+    print(f"Custom additions:      None (pure NLTK)")
     print(f"{'='*70}")
     
     input("\nPress Enter to continue...")
     
-    # ============================================
-    # Load Documents
-    # ============================================
-    
+    # Load documents
     print("\n" + "="*70)
     print("📖 LOADING DOCUMENTS")
     print("="*70)
     
-    # Load clean text (for TFIDF-Word)
     clean_docs, clean_filenames = load_documents(CLEAN_TEXT_FOLDER)
-    
-    # Load lemmatized text (for TFIDF-Lemm)
     lemm_docs, lemm_filenames = load_documents(LEMMATIZED_FOLDER)
     
-    # ============================================
-    # Build TFIDF-Word Matrix
-    # ============================================
-    
+    # Build TFIDF-Word
     word_matrix, word_features, word_vectorizer, word_stats = build_tfidf_matrix(
         documents=clean_docs,
         filenames=clean_filenames,
@@ -447,25 +387,28 @@ def main():
         min_df=MIN_DF,
         max_df=MAX_DF,
         max_features=MAX_FEATURES,
-        use_bm25=True
+        use_bm25=True,
+        stopwords_set=nltk_stopwords
     )
     
-    # Save matrix
+    # Save Word matrix
     word_matrix_file = Path(OUTPUT_FOLDER) / "tfidf_word_matrix.npz"
     save_npz(word_matrix_file, word_matrix)
     print(f"\n💾 Saved: {word_matrix_file}")
     
-    # Save filenames mapping
     word_filenames_file = Path(OUTPUT_FOLDER) / "tfidf_word_filenames.txt"
     with open(word_filenames_file, 'w', encoding='utf-8') as f:
         for fname in clean_filenames:
             f.write(fname + '\n')
     print(f"💾 Saved: {word_filenames_file}")
     
-    # ============================================
-    # Build TFIDF-Lemm Matrix
-    # ============================================
+    word_features_file = Path(OUTPUT_FOLDER) / "tfidf_word_features.txt"
+    with open(word_features_file, 'w', encoding='utf-8') as f:
+        for feature in word_features:
+            f.write(feature + '\n')
+    print(f"💾 Saved: {word_features_file}")
     
+    # Build TFIDF-Lemm
     lemm_matrix, lemm_features, lemm_vectorizer, lemm_stats = build_tfidf_matrix(
         documents=lemm_docs,
         filenames=lemm_filenames,
@@ -473,51 +416,46 @@ def main():
         min_df=MIN_DF,
         max_df=MAX_DF,
         max_features=MAX_FEATURES,
-        use_bm25=True
+        use_bm25=True,
+        stopwords_set=nltk_stopwords
     )
     
-    # Save matrix
+    # Save Lemm matrix
     lemm_matrix_file = Path(OUTPUT_FOLDER) / "tfidf_lemm_matrix.npz"
     save_npz(lemm_matrix_file, lemm_matrix)
     print(f"\n💾 Saved: {lemm_matrix_file}")
     
-    # Save filenames mapping
     lemm_filenames_file = Path(OUTPUT_FOLDER) / "tfidf_lemm_filenames.txt"
     with open(lemm_filenames_file, 'w', encoding='utf-8') as f:
         for fname in lemm_filenames:
             f.write(fname + '\n')
     print(f"💾 Saved: {lemm_filenames_file}")
     
-    # ============================================
-    # Calculate Feature Importance
-    # ============================================
+    lemm_features_file = Path(OUTPUT_FOLDER) / "tfidf_lemm_features.txt"
+    with open(lemm_features_file, 'w', encoding='utf-8') as f:
+        for feature in lemm_features:
+            f.write(feature + '\n')
+    print(f"💾 Saved: {lemm_features_file}")
     
+    # Calculate feature importance
     print("\n" + "="*70)
     print("📊 CALCULATING FEATURE IMPORTANCE")
     print("="*70)
     
-    # For TFIDF-Word
     word_ig = calculate_information_gain(word_matrix, None, word_features)
     word_chi2 = calculate_chi_squared(word_matrix, None, word_features)
     
-    # For TFIDF-Lemm
     lemm_ig = calculate_information_gain(lemm_matrix, None, lemm_features)
     lemm_chi2 = calculate_chi_squared(lemm_matrix, None, lemm_features)
     
-    # ============================================
     # Export to Excel
-    # ============================================
-    
     excel_file = Path(OUTPUT_FOLDER) / "feature_importance.xlsx"
     export_to_excel(
         word_ig, word_chi2, lemm_ig, lemm_chi2,
         word_stats, lemm_stats, excel_file
     )
     
-    # ============================================
-    # Display Top Features
-    # ============================================
-    
+    # Display top features
     print("\n" + "="*70)
     print("🏆 TOP 20 FEATURES")
     print("="*70)
@@ -534,23 +472,23 @@ def main():
     print("\n📝 TFIDF-Lemm - Top 20 by Chi-squared:")
     print(lemm_chi2.head(20).to_string(index=False))
     
-    # ============================================
-    # Final Summary
-    # ============================================
-    
+    # Final summary
     print("\n" + "="*70)
     print("✅ COMPLETED!")
     print("="*70)
     print(f"\n📂 Output files:")
     print(f"   • {word_matrix_file}")
     print(f"   • {word_filenames_file}")
+    print(f"   • {word_features_file}")
     print(f"   • {lemm_matrix_file}")
     print(f"   • {lemm_filenames_file}")
+    print(f"   • {lemm_features_file}")
     print(f"   • {excel_file}")
     print(f"\n📊 Statistics:")
     print(f"   • TFIDF-Word: {word_stats['num_documents']} documents, {word_stats['num_features']} features")
     print(f"   • TFIDF-Lemm: {lemm_stats['num_documents']} documents, {lemm_stats['num_features']} features")
-    print("\n🎉 TF-IDF matrices successfully created!")
+    print(f"   • Stopwords: {len(nltk_stopwords)} (NLTK only, no custom additions)")
+    print("\n🎉 TF-IDF matrices with pure NLTK stopwords successfully created!")
 
 
 if __name__ == "__main__":
