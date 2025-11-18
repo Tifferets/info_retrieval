@@ -400,13 +400,17 @@ def main():
 ║      Step 4: Build Word2Vec                                  ║
 ╚══════════════════════════════════════════════════════════════╝
     """)
+
+    default_input_word = "parliament_data/clean_text"
+    default_input_lemm = "parliament_data/lemmatized_text"
+    default_output = "parliament_data/w2v_lemm_and_words"
     
     # Get paths from user
     print("\n📂 Configuration:\n")
     
-    clean_folder = input("Path to clean text folder: ").strip()
-    lemm_folder = input("Path to lemmatized text folder: ").strip()
-    output_folder = input("Path for output folder: ").strip()
+    clean_folder = input("Path to clean text folder: ").strip() or default_input_word
+    lemm_folder = input("Path to lemmatized text folder: ").strip() or default_input_lemm
+    output_folder = input("Path for output folder: ").strip() or default_output
     
     # Parameters
     print("\n⚙️  Parameters (Enter for defaults):\n")
