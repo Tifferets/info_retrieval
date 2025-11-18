@@ -248,56 +248,31 @@ def main():
 ╚══════════════════════════════════════════════════════════════╝
     """)
     
-    print("Choose an option:\n")
-    print("1️⃣  Preview lemmatization (see examples from one file)")
-    print("2️⃣  Lemmatize all files in folder")
-    print("3️⃣  Lemmatize single file")
+  
+    default_input = r"C:\Users\USER\Desktop\school work\Year 5\aichzur meida\clean_xml"
+    default_output = r"C:\Users\USER\Desktop\school work\Year 5\aichzur meida\lemmatized_xml"
     
-    choice = input("\nChoice (1/2/3): ").strip()
+    print(f"\n📂 Folder Configuration:")
+    print(f"{'='*70}")
     
-    if choice == '1':
-        # Preview
-        default_folder = r"C:\Users\USER\Desktop\school work\Year 5\aichzur meida\clean_xml"
-        print(f"\nDefault folder: {default_folder}")
-        
-        folder = input("Press Enter for default, or enter different path: ").strip()
-        if not folder:
-            folder = default_folder
-        
-        preview_lemmatization(folder)
-        
-    elif choice == '2':
-        # Batch process
-        default_input = r"C:\Users\USER\Desktop\school work\Year 5\aichzur meida\clean_xml"
-        default_output = r"C:\Users\USER\Desktop\school work\Year 5\aichzur meida\lemmatized_xml"
-        
-        print(f"\n📂 Folder Configuration:")
-        print(f"{'='*70}")
-        
-        input_folder = input(f"Input folder (Enter for default): ").strip() or default_input
-        output_folder = input(f"Output folder (Enter for default): ").strip() or default_output
-        
-        print(f"\n{'='*70}")
-        print(f"Ready to lemmatize:")
-        print(f"{'='*70}")
-        print(f"Input:  {input_folder}")
-        print(f"Output: {output_folder}")
-        print(f"{'='*70}")
-        
-        confirm = input("\nProceed? (y/n): ").strip().lower()
-        
-        if confirm in ['y', 'yes']:
-            lemmatize_folder(input_folder, output_folder)
-        else:
-            print("\n❌ Cancelled")
+    input_folder = input(f"Input folder (Enter for default): ").strip() or default_input
+    output_folder = input(f"Output folder (Enter for default): ").strip() or default_output
     
-    elif choice == '3':
-        # Single file
-        file_path = input("\nEnter path to text file: ").strip()
-        lemmatize_single_file(file_path)
+    print(f"\n{'='*70}")
+    print(f"Ready to lemmatize:")
+    print(f"{'='*70}")
+    print(f"Input:  {input_folder}")
+    print(f"Output: {output_folder}")
+    print(f"{'='*70}")
     
+    confirm = input("\nProceed? (y/n): ").strip().lower()
+    
+    if confirm in ['y', 'yes']:
+        lemmatize_folder(input_folder, output_folder)
     else:
-        print("\n❌ Invalid choice")
+        print("\n❌ Cancelled")
+    
+   
 
 
 if __name__ == "__main__":

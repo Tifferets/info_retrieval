@@ -7,13 +7,22 @@ This is the first and simplest step.
 """
 
 # Import required libraries
-import os  # Work with file system
-import xml.etree.ElementTree as ET  # Process XML files
-import re  # Regular expressions for text cleaning
-from pathlib import Path  # Convenient work with file paths
-from tqdm import tqdm  # Beautiful progress bar
+import os  # עבודה עם מערכת הקבצים
+import xml.etree.ElementTree as ET  # טיפול בקבצי XML
+import re  # ביטויים רגולריים לניקוי טקסט
+from pathlib import Path  # עבודה נוחה עם נתיבי קבצים
+from tqdm import tqdm  # הצגת פס התקדמות נוח
 
 
+##############################################
+# clean_text(text)
+# פונקציה לניקוי בסיסי של טקסט אחרי החילוץ:
+# • מוסיפה רווחים סביב סימני פיסוק כדי למנוע דבק למילים
+# • מסירה רווחים מרובים
+# למה זה חשוב?
+# טקסט שמגיע מ־XML לרוב לא מסודר, ורוב האלגוריתמים (SpaCy, Word2Vec וכו’)
+# מצפים לשפה אחידה ומופרדת היטב.
+##############################################
 def clean_text(text):
     text = re.sub(r'([^A-Za-z0-9])', r' \1 ', text)
     text = re.sub(r'\s*"\s*', r' " ', text)
@@ -22,37 +31,72 @@ def clean_text(text):
     return text  # בלי strip
 
 
+##############################################
+# extract_text_from_xml(xml_file_path)
+# תפקיד הפונקציה:
+# • לטעון קובץ XML
+# • לעבור על כל התגיות ולחלץ רק טקסט אמיתי (כולל tail)
+# • להתעלם מתגיות לא רלוונטיות כגון <gidredirect>
+# • לאחד את כל הטקסטים למשפט אחד נקי
+#
+# למה זה חשוב?
+# קבצי XML מכילים הרבה מבנה ותוויות – אנחנו רוצים רק את המילים,
+# ולא metadata, קישורים או redirect. התוצאה תהיה קובצי טקסט נקיים
+# לשלב הבא של העיבוד הלשוני.
+##############################################
 def extract_text_from_xml(xml_file_path):
     try:
         tree = ET.parse(xml_file_path)
         root = tree.getroot()
         all_texts = []
         skip_tags = {'gidredirect', 'publicwhip'}
+
         for element in root.iter():
             if element.tag in skip_tags:
                 continue
+
+            # טקסט מתוך תגית
             if element.text and element.text.strip():
                 text = element.text.strip()
                 if len(text) > 0 and not text.isspace():
                     all_texts.append(text)
+
+            # טקסט שנמצא אחרי תגית (tail)
             if element.tail and element.tail.strip():
                 tail = element.tail.strip()
                 if len(tail) > 0 and not tail.isspace():
                     all_texts.append(tail)
+
         if not all_texts:
             return ""
+
         full_text = ' '.join(all_texts)
         full_text = re.sub(r'\s+', ' ', full_text)
         full_text = full_text.strip()
         return full_text
+
     except ET.ParseError as e:
         print(f"⚠️  XML error in {Path(xml_file_path).name}: {e}")
         return ""
+
     except Exception as e:
         print(f"❌ General error in {Path(xml_file_path).name}: {e}")
         return ""
 
 
+##############################################
+# process_xml_folder(input_folder, output_folder)
+# תפקיד הפונקציה:
+# • לסרוק את כל קבצי ה־XML בתיקייה
+# • להפעיל עליהם extract_text_from_xml
+# • לשמור כל מסמך כ־.txt
+# • ליצור תקציר הצלחה/כשלונות
+#
+# למה זה חשוב?
+# זו הפונקציה המרכזית בשלב 1:
+# היא הופכת תיקיה עם קבצי XML לא קריאים לתיקיה עם קבצי טקסט אמיתיים,
+# מוכנים ללמטיזציה/TF-IDF/Word2Vec.
+##############################################
 def process_xml_folder(input_folder, output_folder):
     input_path = Path(input_folder)
     output_path = Path(output_folder)
@@ -83,8 +127,11 @@ def process_xml_folder(input_folder, output_folder):
     failed_count = 0
     empty_files = []
 
+    # מעבר על כל הקבצים עם פס התקדמות
     for xml_file in tqdm(xml_files, desc="Extracting text", unit="file"):
         text = extract_text_from_xml(xml_file)
+
+        # אם יש טקסט – נשמור אותו
         if text:
             output_file = output_path / f"{xml_file.stem}.txt"
             try:
@@ -94,6 +141,7 @@ def process_xml_folder(input_folder, output_folder):
             except Exception as e:
                 print(f"\n❌ Error saving {xml_file.name}: {e}")
                 failed_count += 1
+
         else:
             empty_count += 1
             empty_files.append(xml_file.name)
@@ -108,6 +156,7 @@ def process_xml_folder(input_folder, output_folder):
     print(f"  📁 Files saved in: {output_path}")
     print(f"{'='*70}\n")
 
+    # מידע על קבצים ריקים
     if empty_count > 0:
         print(f"ℹ️  About the {empty_count} skipped files:")
         print(f"   These files contain only <gidredirect> tags (redirect pointers)")
@@ -127,12 +176,18 @@ def process_xml_folder(input_folder, output_folder):
         print(f"⚠️  {failed_count} files had errors - check messages above")
 
 
-### ADDED ###
+##############################################
+# clean_all_text_files(folder_path)
+# תפקיד הפונקציה:
+# • לעבור על כל קבצי ה־txt
+# • להפעיל clean_text על כל קובץ
+# • להבטיח שהטקסט אחיד ובר הפרדה לפני שלב 2
+#
+# למה זה חשוב?
+# גם אחרי חילוץ XML, לפעמים עדיין נשארים רווחים לא תקינים.
+# ניקוי נוסף מבטיח שכל הטקסטים מוכנים לחלוטין ללמטיזציה.
+##############################################
 def clean_all_text_files(folder_path):
-    """
-    Apply clean_text() to all .txt files in the given folder.
-    Cleans punctuation spacing and overwrites the files.
-    """
     folder = Path(folder_path)
     txt_files = list(folder.glob("*.txt"))
 
@@ -153,9 +208,19 @@ def clean_all_text_files(folder_path):
             print(f"❌ Error cleaning {txt_file.name}: {e}")
 
     print(f"\n✅ Finished cleaning all text files in {folder}\n")
-### END ADDED ###
 
 
+##############################################
+# preview_extraction(xml_file_path)
+# תפקיד הפונקציה:
+# להציג תצוגה מקדימה של קובץ XML:
+# • כמות מילים
+# • אורך הדו"ח
+# • 500 התווים הראשונים
+#
+# למה זה חשוב?
+# כדי לוודא שהחילוץ נעשה בצורה נכונה לפני עיבוד אלפי קבצים.
+##############################################
 def preview_extraction(xml_file_path, num_chars=500):
     print(f"\n{'='*70}")
     print(f"🔍 Preview: {Path(xml_file_path).name}")
@@ -178,6 +243,16 @@ def preview_extraction(xml_file_path, num_chars=500):
         return False
 
 
+##############################################
+# main()
+# תפקיד הפונקציה:
+# • לקבל מהמשתמש תיקיית קלט ופלט
+# • להריץ את שלב החילוץ
+# • לבצע ניקוי נוסף לכל קובצי הטקסט
+#
+# למה זה חשוב?
+# main מרכז את כל העבודה ומבטיח ביצוע של כל השלבים בסדר הנכון.
+##############################################
 def main():
     print("""
 ╔══════════════════════════════════════════════════════════════╗
@@ -185,43 +260,17 @@ def main():
 ╚══════════════════════════════════════════════════════════════╝
     """)
 
-    print("1️⃣  Quick check - Preview of one file")
-    print("2️⃣  Full processing - Extract text from all files")
-    print("3️⃣  Custom - Set your own paths\n")
-    choice = input("Choose option (1/2/3): ").strip()
+    default_input = "parliament_data/raw_xml"
+    default_output = "parliament_data/extracted_text"
 
-    if choice == '1':
-        folder = input("\nFolder with XML files: ").strip()
-        xml_files = list(Path(folder).glob('*.xml'))
-        if xml_files:
-            print(f"\n✅ Found {len(xml_files)} XML files")
-            print(f"📄 Showing first file: {xml_files[0].name}")
-            preview_extraction(xml_files[0])
-        else:
-            print(f"\n❌ No XML files found in {folder}")
+    input_folder = input(f"\nInput folder [{default_input}]: ").strip() or default_input
+    output_folder = input(f"Output folder [{default_output}]: ").strip() or default_output
 
-    elif choice == '2':
-        default_input = "parliament_data/raw_xml"
-        default_output = "parliament_data/extracted_text"
-        input_folder = input(f"\nInput folder [{default_input}]: ").strip() or default_input
-        output_folder = input(f"Output folder [{default_output}]: ").strip() or default_output
-        confirm = input("\nContinue? (y/n): ").strip().lower()
-        if confirm in ('y', 'yes'):
-            process_xml_folder(input_folder, output_folder)
-            ### ADDED ###
-            ### END ADDED ###
-        else:
-            print("\n❌ Cancelled by user")
+    confirm = input("\nContinue? (y/n): ").strip().lower()
 
-    elif choice == '3':
-        input_folder = input("\nInput folder (XML): ").strip()
-        output_folder = input("Output folder (TXT): ").strip()
+    if confirm in ('y', 'yes'):
         process_xml_folder(input_folder, output_folder)
-        ### ADDED ###
-        clean_all_text_files(output_folder)
-        ### END ADDED ###
-    else:
-        print("\n❌ Invalid choice")
+        clean_all_text_files(output_folder)  # ניקוי נוסף
 
 
 if __name__ == "__main__":
